@@ -30,6 +30,7 @@ const InfluencersListing = () => {
           sort,
         },
       });
+      console.log(response.data)
       setInfluencers(response.data);
     } catch (error) {
       console.error("Erreur lors de la récupération des influenceurs :", error);
@@ -41,7 +42,6 @@ const InfluencersListing = () => {
   const handleSearchClick = () => {
     fetchInfluencers(tempSearch, tempCategory, tempSort);
   };
-  const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -135,10 +135,10 @@ const InfluencersListing = () => {
                   <div key={influencer.id} className="influencer-card">
                     <div className="card-top">
                     <img
-  src={`${BASE_URL}${influencer.photo}`}
-  alt={influencer.name}
-/>
-
+                      src={influencer.image}
+                      alt={influencer.name}
+                      className="card-image"
+                    />
 
 
                       {influencer.verified && (
@@ -164,7 +164,7 @@ const InfluencersListing = () => {
                         </div>
                       </div>
 
-                      <p className="card-description">{influencer.description}</p>
+                      <p className="card-description">{influencer.bio}</p>
 
                       <div className="card-stats">
                         <div><span>Abonnés</span><strong>{influencer.followers}</strong></div>

@@ -1,61 +1,98 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FiSearch, FiFilter } from "react-icons/fi";
-import CategoryFilters from "./CategoryFilters"; 
-import { users, brand } from "../data/data"; 
-import InfluencerList from "./InfluencerList";
-import BrandList from "./BrandList"; 
+import axios from "axios";
 
-// ici je declare les états 
+import CategoryFilters from "./CategoryFilters";
+import BrandListCard from "./BrandListCard";
+import InfluencerListCard from "./InfluencerListCard";
+
 const ChoiceButton = () => {
   const [selectedOption, setSelectedOption] = useState("influenceur");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState("");
+  const [data, setData] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // ici je selection l'influenceur ou la marque
+  // Requête vers API selon sélection
+  useEffect(() => {
+    const fetchData = async () => {
+      if (
+        searchQuery.trim() === "" &&
+        selectedCategory === "" &&
+        selectedIndustry === ""
+      ) {
+        setData([]);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        let endpoint = "";
+        let params = {};
+
+        if (selectedOption === "influenceur") {
+          endpoint = "http://localhost:3001/api/influencers";
+          params = {
+            search: searchQuery.trim(),
+            category: selectedCategory,
+          };
+        } else {
+          endpoint = "http://localhost:3001/api/brands-full";
+          params = {
+            search: searchQuery.trim(),
+            industry: selectedIndustry,
+          };
+        }
+
+        const res = await axios.get(endpoint, { params });
+        setData(res.data);
+      } catch (error) {
+        console.error("Erreur chargement :", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [searchQuery, selectedOption, selectedCategory, selectedIndustry]);
+
   const handleClick = (option) => {
     setSelectedOption(option);
     setSearchQuery("");
+    setSelectedCategory("");
+    setSelectedIndustry("");
+    setData([]);
+    setShowFilters(false);
   };
 
-// affchage des  filtres
   const handleFilterClick = () => {
     setShowFilters(!showFilters);
   };
 
-// ici je filtres les resultats en fonction de la recherche
-  const filteredData =
-    selectedOption === "influenceur"
-      ? users.filter(
-          (user) =>
-            user.name.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      : brand.filter(
-          (item) =>
-            item.name.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-
   return (
-    //affichage du composant deux bouton pour selectionner
     <>
-    <div className="toggle-search-target">
-      <button
-        onClick={() => handleClick("influenceur")}
-        className={`choice-button ${selectedOption === "influenceur" ? "active" : "inactive"}`}
-      >
-        Je recherche des influenceurs
-      </button>
-      <button
-        onClick={() => handleClick("marque")}
-        className={`choice-button ${selectedOption === "marque" ? "active" : "inactive"}`}
-      >
-        Je recherche des marques
-      </button>
+      <div className="toggle-search-target">
+        <button
+          onClick={() => handleClick("influenceur")}
+          className={`choice-button ${
+            selectedOption === "influenceur" ? "active" : "inactive"
+          }`}
+        >
+          Je recherche des influenceurs
+        </button>
+        <button
+          onClick={() => handleClick("business")}
+          className={`choice-button ${
+            selectedOption === "business" ? "active" : "inactive"
+          }`}
+        >
+          Je recherche des marques
+        </button>
       </div>
-    
-    <div className="choice-container">
-      
 
-      {/*ici bare de filtre et recherches */}
+      <div className="choice-container">
         <div className="search-bar-container">
           <div className="search-bar">
             <FiSearch className="search-icon" />
@@ -74,22 +111,33 @@ const ChoiceButton = () => {
               <FiFilter />
             </button>
           </div>
-        {/* ici je conditione les filtres et les resultats*/}     
-        {showFilters && (
-          <div className="filters-dropdown">
-            <CategoryFilters />
-          </div>
-        )}
 
-        {searchQuery.trim() !== '' && (
-          selectedOption === "influenceur" ? (
-            <InfluencerList data={filteredData} />
-          ) : (
-            <BrandList data={filteredData} />
-          )
-        )}
+          {showFilters && (
+            <div className="filters-dropdown">
+              <CategoryFilters
+                selectedOption={selectedOption}
+                onSelectCategory={setSelectedCategory}
+                onSelectIndustry={setSelectedIndustry}
+              />
+            </div>
+          )}
+
+          {isLoading && <p>Chargement en cours...</p>}
+
+          {!isLoading && data.length > 0 && (
+            selectedOption === "influenceur" ? (
+              <InfluencerListCard influencers={data} />
+            ) : (
+              <BrandListCard brands={data} />
+            )
+          )}
+
+          {!isLoading && data.length === 0 &&
+            (searchQuery || selectedCategory || selectedIndustry) && (
+              <p>Aucun résultat trouvé.</p>
+          )}
+        </div>
       </div>
-    </div>
     </>
   );
 };

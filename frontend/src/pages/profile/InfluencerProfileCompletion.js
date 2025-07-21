@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  User, Camera, MapPin, Globe, Instagram, Twitter, Youtube, Phone, Mail,
-  Calendar, Languages, Tag, DollarSign, Save, ArrowLeft
+  User, Camera, MapPin, Globe, Instagram, Twitter, Youtube, Phone, DollarSign, Save, ArrowLeft
 } from 'lucide-react';
 import { calculateProfileScore } from '../../utils/profileUtils'; 
 import ImageUploader from '../../ImageUploader';
@@ -13,9 +12,7 @@ import ImageUploader from '../../ImageUploader';
 const InfluencerProfileCompletion = () => {
   const navigate = useNavigate();
 
-  const user = JSON.parse(localStorage.getItem("users"));
-  const userId = user?.id;
-  const token = localStorage.getItem("token"); 
+ 
 
 
 
@@ -24,13 +21,67 @@ const InfluencerProfileCompletion = () => {
   const [coverImage, setCoverImage] = useState('');
   const [formData, setFormData] = useState({
     firstname: '', lastname: '', bio: '',présentation: '', birthdate: '', gender: '', city: '' , country: '',phone: '', email: '', languages: [],
-    category: '', interests: [], experience: '', collaborations: '', 
+    category: '', interests: [], experience: '', collaborations: '',tags: [],description: '',
     instagram: '', tiktok: '', youtube: '', twitter: '', website: '',
-    postRate: '', storyRate: '', reelRate: '', videoRate: '',
     collaborationTypes: [], availability: '', minBudget: ''
   });
 
   const [progress, setProgress] = useState({ score: 0, percentage: 0, isComplete: false }); 
+
+  useEffect(() => {
+    const storedUser = JSON.parse(localStorage.getItem("users"));
+    const userId = storedUser?.id;
+  
+    if (!userId) return;
+  
+    fetch(`http://localhost:3001/api/influencer/${userId}`)
+      .then(res => res.json())
+      .then(data => {
+        setFormData(prev => ({
+          ...prev,
+          // Identité
+          firstname: data.firstname || '',
+          lastname: data.lastname || '',
+  
+          // Localisation
+          city: data.city || '',
+          country: data.country || '',
+          birthdate: data.birthdate || '',
+  
+          // Contact
+          phone: data.phone || '',
+          email: data.email || '',
+  
+          // Présentation & profil
+          bio: data.bio || '',
+          description: data.description || '',
+          category: data.category || '',
+          collaborations: data.collaborations || '',
+          interests: Array.isArray(data.tags) ? data.tags : [],
+          experience: data.experience || '',
+          availability: data.availability || '',
+  
+          // Réseaux sociaux
+          instagram: data.platforms?.instagram?.url || '',
+          tiktok: data.platforms?.tiktok?.url || '',
+          youtube: data.platforms?.youtube?.url || '',
+          twitter: data.platforms?.twitter?.url || '',
+          website: data.website || '',
+  
+          // Langues
+          languages: Array.isArray(data.languages) ? data.languages : [],
+  
+          // Collaborations types
+          collaborationTypes: Array.isArray(data.collaborationTypes) ? data.collaborationTypes : []
+        }));
+  
+        setProfileImage(data.image || '');
+        setCoverImage(data.cover_image || '');
+      })
+      .catch(err => console.error("Erreur chargement profil :", err));
+  }, []);
+  
+  
 
   useEffect(() => {
     const profile = { ...formData, photo: profileImage };
@@ -68,6 +119,11 @@ const InfluencerProfileCompletion = () => {
     'Français', 'Anglais', 'Espagnol', 'Italien', 'Allemand',
     'Portugais', 'Mandarin', 'Japonais', 'Arabe', 'Russe'
   ];
+  const genderOptions = [
+    { label: 'Homme', value: 'male' },
+    { label: 'Femme', value: 'female' },
+    { label: 'Autre', value: 'other' },
+  ];
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -83,52 +139,81 @@ const InfluencerProfileCompletion = () => {
 
   
   const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  try {
-    const user = JSON.parse(localStorage.getItem("users"));
-    const token = localStorage.getItem("token");
-    const userId = user?.id;
-
-    //  Met à jour les infos de profil dans la BDD
-    await fetch(`http://localhost:3001/api/user/${userId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}` 
-      },
-      body: JSON.stringify({
-        firstname: formData.firstname,
-        lastname: formData.lastname,
-        bio: formData.bio,
-        présentation: formData.présentation,
-        instagram: formData.instagram,
-        tiktok: formData.tiktok,
-        youtube: formData.youtube,
-        pricing: formData.pricing,
-        profileImage,
-        coverImage
-      })
-    });
-
-    //  Marque le profil comme complet
-    await fetch(`http://localhost:3001/api/user/${userId}/complete`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}` 
-      }
-    });
-
-    //  Redirige ou affiche une notification
-    alert("Profil mis à jour avec succès !");
-    navigate('/influencer/dashboard'); 
-
-  } catch (error) {
-    console.error("Erreur lors de la mise à jour :", error);
-    alert("Erreur lors de la sauvegarde : " + error.message);
-  }
-};
+    e.preventDefault();
+  
+    try {
+      const user = JSON.parse(localStorage.getItem("users"));
+      const token = localStorage.getItem("token");
+      const userId = user?.id;
+  
+      if (!userId) throw new Error("Utilisateur non trouvé dans le localStorage");
+   
+      // 🧠 Envoi du profil principal (users)
+      await fetch(`http://localhost:3001/api/user/${userId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body:JSON.stringify({
+          firstname: formData.firstname,
+          lastname: formData.lastname,
+          birthdate: formData.birthdate,
+          gender: formData.gender,
+          bio: formData.bio,
+          description: formData.présentation,
+          city: formData.city,
+          country: formData.country,
+          phone: formData.phone,
+          email: formData.email,
+          category: formData.category,
+          experience: formData.experience,
+          photo: formData.photo,
+          cover_image: formData.coverImage,
+          min_budget: formData.minBudget,
+          availability: formData.availability,
+          collaborationTypes: formData.collaborationTypes,
+          interests: formData.interests,
+          languages: formData.languages,
+          collaborations: 0,
+          website: formData.website
+        })
+      });
+  
+      // Envoi des réseaux sociaux dans la table `social_networks`
+      await fetch(`http://localhost:3001/api/user/${userId}/socials`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          instagram: formData.instagram,
+          tiktok: formData.tiktok,
+          youtube: formData.youtube,
+          twitter: formData.twitter
+        })
+      });
+  
+      //  Marque le profil comme complet 
+      await fetch(`http://localhost:3001/api/user/${userId}/complete`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}` 
+        }
+      });
+  
+      //  Success
+      alert("Profil mis à jour avec succès !");
+      navigate('/influencer/dashboard');
+  
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour :", error);
+      alert("Erreur lors de la sauvegarde : " + error.message);
+    }
+  };
+  
 
 
   
@@ -261,27 +346,31 @@ const InfluencerProfileCompletion = () => {
                 <label className="label">Date de naissance</label>
                 <input
                   type="date"
-                  name="Birthdate"
-                  value={formData.dateOfbirth}
+                  name="birthdate" 
+                  value={formData.birthdate} 
                   onChange={handleChange}
                   className="input"
                 />
               </div>
 
+
               <div>
                 <label className="label">Genre</label>
                 <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className="input"
-                >
-                  <option value="">Sélectionner</option>
-                  <option value="homme">Homme</option>
-                  <option value="femme">Femme</option>
-                  <option value="autre">Autre</option>
-                </select>
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="input"
+                  >
+                    <option value="">Sélectionner</option>
+                    {genderOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
               </div>
+
 
               <div>
                 <label className="label">Localisation *</label>
@@ -318,8 +407,8 @@ const InfluencerProfileCompletion = () => {
             <div className="mt">
               <label className="label">Présentation / Description *</label>
               <textarea
-                name="présentation"
-                value={formData.présentation}
+                name="description"
+                value={formData.description}
                 onChange={handleChange}
                 rows="4"
                 placeholder="Décrivez-vous en quelques mots..."
@@ -384,14 +473,14 @@ const InfluencerProfileCompletion = () => {
             <div className="mt">
               <label className="label">Centres d'intérêt</label>
               <div className="chip-container">
-                {interests.map(interest => (
+                {interests.map(tags => (
                   <button
-                    key={interest}
+                    key={tags}
                     type="button"
-                    onClick={() => handleArrayToggle(formData.interests, interest, 'interests')}
-                    className={`chip ${formData.interests.includes(interest) ? 'chip-active' : ''}`}
+                    onClick={() => handleArrayToggle(formData.tags, tags, 'interests')}
+                    className={`chip ${formData.interests.includes(tags) ? 'chip-active' : ''}`}
                   >
-                    {interest}
+                    {tags}
                   </button>
                 ))}
               </div>
@@ -497,67 +586,7 @@ const InfluencerProfileCompletion = () => {
           {/* Tarifs */}
           <div className="card">
             <h2 className="section-title">Tarifs (optionnel)</h2>
-            <div className="grid-2">
-              <div>
-                <label className="label">Post Instagram (€)</label>
-                <div className="input-icon-wrapper">
-                  <DollarSign className="input-icon" />
-                  <input
-                    type="number"
-                    name="postRate"
-                    value={formData.postRate}
-                    onChange={handleChange}
-                    placeholder="500"
-                    className="input has-icon"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label">Story Instagram (€)</label>
-                <div className="input-icon-wrapper">
-                  <DollarSign className="input-icon" />
-                  <input
-                    type="number"
-                    name="storyRate"
-                    value={formData.storyRate}
-                    onChange={handleChange}
-                    placeholder="200"
-                    className="input has-icon"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label">Reel Instagram (€)</label>
-                <div className="input-icon-wrapper">
-                  <DollarSign className="input-icon" />
-                  <input
-                    type="number"
-                    name="reelRate"
-                    value={formData.reelRate}
-                    onChange={handleChange}
-                    placeholder="600"
-                    className="input has-icon"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="label">Vidéo YouTube (€)</label>
-                <div className="input-icon-wrapper">
-                  <DollarSign className="input-icon" />
-                  <input
-                    type="number"
-                    name="videoRate"
-                    value={formData.videoRate}
-                    onChange={handleChange}
-                    placeholder="1000"
-                    className="input has-icon"
-                  />
-                </div>
-              </div>
-            </div>
+            
 
             <div className="grid-2 mt">
               <div>

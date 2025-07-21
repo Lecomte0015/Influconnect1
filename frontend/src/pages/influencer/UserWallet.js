@@ -1,28 +1,95 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import WithdrawModal from '../../components/WithdrawModal'; 
 import {
   DollarSign,
   ArrowUpRight,
   ArrowDownRight,
-  CreditCard,
   Banknote,
   Download,
+  CreditCard,
+  Plus,
 } from 'lucide-react';
 
-const UserWallet = ({
-  balance = 0,
-  pendingBalance = 0,
-  paymentMethods = [],
-  transactions = [],
-}) => {
+const UserWallet = () => {
+  const [balance, setBalance] = useState(0);
+  const [pendingBalance, setPendingBalance] = useState(0);
+  const [transactions, setTransactions] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+
+  const token = localStorage.getItem('token');
+
+  const loadWallet = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/wallet', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) throw new Error('Erreur lors du chargement du wallet');
+      const data = await res.json();
+      setBalance(data.balance);
+      setPendingBalance(data.pending);
+    } catch (error) {
+      console.error(error);
+      
+    }
+  };
+
+  const loadTransactions = async () => {
+    try {
+      const res = await fetch('http://localhost:3001/wallet/transactions', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (!res.ok) throw new Error('Erreur lors du chargement des transactions');
+      const data = await res.json();
+      setTransactions(data.transactions);
+    } catch (error) {
+      console.error(error);
+      alert('Erreur lors du chargement des transactions');
+    }
+  };
+
+  const handleWithdraw = async (amount) => {
+    try {
+      const res = await fetch('http://localhost:3001/wallet/withdraw', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount })
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert(errorData.message || 'Erreur lors de la demande');
+        return;
+      }
+      alert('Demande de retrait envoyée');
+      await loadWallet();
+      await loadTransactions();
+    } catch (error) {
+      console.error(error);
+      alert('Erreur lors de la demande de retrait');
+    }
+  };
+
+  useEffect(() => {
+    loadWallet();
+    loadTransactions();
+  }, []);
+
   const availableBalance = balance - pendingBalance;
 
   return (
     <div className="wallet-container">
       <div className="wallet-header">
         <h1>Mon Portefeuille</h1>
-        <button className="withdraw-button">
-          <Banknote size={18} />
-          Retirer des fonds
+        <button className="withdraw-button" onClick={() => setShowModal(true)}>
+          <Banknote size={18} /> Retirer des fonds
         </button>
       </div>
 
@@ -58,36 +125,23 @@ const UserWallet = ({
         </div>
       </div>
 
+      {/* ✅ Bloc Méthodes de paiement */}
       <div className="payment-methods">
-        <div className="methods-header">
-          <h2>Méthodes de paiement</h2>
-          <button className="add-button">+ Ajouter</button>
+        <div className="payment-methods-header">
+          <h2>
+            <CreditCard size={20} className="mr-2" />
+            Méthodes de paiement
+          </h2>
+          <button className="add-method-button">
+            <Plus size={16} /> Ajouter une méthode de paiement
+          </button>
         </div>
-
-        <div className="method-list">
-          {paymentMethods.length > 0 ? (
-            paymentMethods.map((method, index) => (
-              <div className="method-item" key={index}>
-                <div className="method-info">
-                  {method.type === 'card' ? (
-                    <CreditCard size={24} color="#9ca3af" />
-                  ) : (
-                    <Banknote size={24} color="#9ca3af" />
-                  )}
-                  <div>
-                    <p className="method-name">{method.name}</p>
-                    <p className="method-detail">{method.details}</p>
-                  </div>
-                </div>
-                {method.primary && <span className="badge primary">Principal</span>}
-              </div>
-            ))
-          ) : (
-            <p>Aucune méthode enregistrée</p>
-          )}
+        <div className="payment-methods-placeholder">
+          <p>Aucune méthode de paiement enregistrée.</p>
         </div>
       </div>
 
+      {/* ✅ Transactions */}
       <div className="transactions">
         <div className="transactions-header">
           <h2>Transactions récentes</h2>
@@ -107,41 +161,35 @@ const UserWallet = ({
           </thead>
           <tbody>
             {transactions.length > 0 ? (
-              transactions.map((transaction) => (
-                <tr key={transaction.id}>
-                  <td>{new Date(transaction.date).toLocaleDateString('fr-FR')}</td>
-                  <td>{transaction.description}</td>
-                  <td className={transaction.amount > 0 ? 'text-green' : 'text-red'}>
-                    {transaction.amount > 0 ? '+' : ''}
-                    {transaction.amount.toFixed(2)}€
+              transactions.map((tx) => (
+                <tr key={tx.id}>
+                  <td>{new Date(tx.date).toLocaleDateString('fr-FR')}</td>
+                  <td>{tx.description}</td>
+                  <td className={tx.amount > 0 ? 'text-green' : 'text-red'}>
+                    {tx.amount > 0 ? '+' : ''}
+                    {tx.amount.toFixed(2)}€
                   </td>
                   <td>
-                    <span
-                      className={`badge ${
-                        transaction.status === 'completed'
-                          ? 'success'
-                          : transaction.status === 'pending'
-                          ? 'warning'
-                          : 'error'
-                      }`}
-                    >
-                      {transaction.status === 'completed'
-                        ? 'Complété'
-                        : transaction.status === 'pending'
-                        ? 'En attente'
-                        : 'Échoué'}
+                    <span className={`badge ${tx.status === 'done' ? 'success' : 'warning'}`}>
+                      {tx.status === 'done' ? 'Complété' : 'En attente'}
                     </span>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="4">Aucune transaction disponible</td>
+                <td colSpan="4">Aucune transaction</td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <WithdrawModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onWithdraw={handleWithdraw}
+      />
     </div>
   );
 };

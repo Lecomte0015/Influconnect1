@@ -16,25 +16,35 @@ import EmailRedirect from "./pages/confirm/EmailRedirect";
 import EmailInvalid from './pages/confirm/EmailInvalid';
 import EmailError from './pages/confirm/EmailError';
 import EmailAlreadyConfirmed from './pages/confirm/EmailAlreadyConfirmed';
+import CollaborationRequests from './components/CollaborationRequests';
+import MyFavorites from './pages/common/MyFavorites'
+import SubscriptionResponse from "./pages/stripe/SubscriptionResponse";
+import Inbox from "./pages/common/Inbox";
+import Conversation from "./pages/common/Conversation";
 
 
 
-import InfluencerList from "./components/InfluencerList";
+import InfluencerListCard from "./components/BrandListCard";
 import ProfileDetail from "./pages/influencer/ProfileDetail";
 import UserDashboard from "./pages/influencer/UserDashboard";
 import InfluencersListing from "./pages/(public)/InfluencersListing";
 import InfluencerProfileCompletion from "./pages/profile/InfluencerProfileCompletion";
 import Wallet from "./pages/influencer/UserWallet";
-import Subscription from "./pages/influencer/Subscription";
+import Subscription from './pages/common/Subscription';
+
+
+
+
 
 
 
 import DetailProfileBrand from "./pages/brand/DetailProfileBrand";
 import DashboardHeader from "./components/DashboardHeader";
 import BrandDashboard from "./pages/brand/BrandDashboard";
-import BrandList from "./components/BrandList";
+import BrandListCard from "./components/BrandListCard";
 import BrandListing from "./pages/(public)/BrandListing";
 import BrandProfileCompletion from "./pages/profile/BrandProfileCompletion";
+
 
 
 
@@ -103,6 +113,11 @@ function App() {
           <Route path="/email-already-confirmed" element={<EmailAlreadyConfirmed />} />
           <Route path="/influencer/:id" element={<ProfileDetail />} />
           <Route path="/brand/:id" element={<DetailProfileBrand />} /> 
+          <Route path="/brands" element={<BrandListCard />} />
+          <Route path="/influencers" element={<InfluencerListCard />} />
+          
+
+         
 
         </Route>
 
@@ -116,18 +131,31 @@ function App() {
 
 
         <Route element={<BrandLayout/>}>
-          <Route path="/brands" element={<BrandList />} />              
+                        
           <Route path="/brand/dashboard" element={<BrandDashboard />} />
           <Route path="/profile/brand/complete" element={<BrandProfileCompletion />} />
+          <Route path="/brand/collaborations" element={<CollaborationRequests />} />
+          <Route path="/my-favorites" element={<MyFavorites />} />
+          <Route path="/brand/subscription" element={<Subscription userType="marque" />} />
+          <Route path="/subscription" element={<SubscriptionResponse />} />
+          <Route path="/conversation/:userId" element={<Conversation />} />
+          <Route path="/inbox" element={<Inbox />} />
 
         </Route> 
 
         <Route element={<InfluencerLayout/>}>
-          <Route path="/influencers" element={<InfluencerList />} />
+         
           <Route path="/influencer/dashboard" element={<UserDashboard />} />
           <Route path="/profile/influencer/complete" element={<InfluencerProfileCompletion />} />
           <Route path="/influencer/wallet" element={<Wallet />} />
-          <Route path="/influencer/subscription" element={<Subscription />} />
+          <Route path="/influencer/collaborations" element={<CollaborationRequests />} />
+          <Route path="/my-favorites" element={<MyFavorites />} />
+          <Route path="/influencer/subscription" element={<Subscription userType="influenceur" />} />
+          <Route path="/subscription" element={<SubscriptionResponse />} />
+          <Route path="/conversation/:userId" element={<Conversation />} />
+          <Route path="/inbox" element={<Inbox />} />
+
+
         </Route>
 
 

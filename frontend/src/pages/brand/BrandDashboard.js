@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Users, DollarSign, BarChart2, Target, MessageCircle, Eye, Edit,
+  Users, DollarSign, BarChart2, Target, MessageSquare, Eye, Edit,Send,
 } from 'lucide-react';
 import { Line, Pie } from 'react-chartjs-2';
 import { Link } from 'react-router-dom';
@@ -182,13 +182,25 @@ const BrandDashboard = () => {
       </div>
 
       <section className="panel-section">
-        <h2>Actions rapides</h2>
-        <div className="quick-actions">
-          <button className="quick-action"><Users className="icon" /> Trouver des influenceurs</button>
-          <button className="quick-action"><BarChart2 className="icon" /> Créer une campagne</button>
-          <button className="quick-action"><MessageCircle className="icon" /> Messages</button>
-          <button className="quick-action"><Eye className="icon" /> Rapports détaillés</button>
-        </div>
+      <h2 className="quick-actions-title">Actions rapides</h2>
+      <div className="quick-actions-grid">
+        <Link to="/influencerslisting" className="quick-action primary">
+          <Users className="icon" />
+          Trouver des influenceurs
+        </Link>
+        <Link to="/brand/collaborations" className="quick-action">
+          <Send className="icon" />
+          Mes collaborations
+        </Link>
+        <Link to="/brand/" className="quick-action">
+          <Eye className="icon" />
+          Rapports detaillés
+        </Link>
+        <Link to="/profile/brand/complete" className="quick-action">
+          <Edit className="icon" />
+          Modifier mon profil
+        </Link>
+      </div>
       </section>
     </div>
   );

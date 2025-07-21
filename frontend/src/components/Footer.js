@@ -27,7 +27,6 @@ const Footer = () => {
             <h3 className="section-title">Liens rapides</h3>
             <ul className="links-list">
               <li><a href="#">Accueil</a></li>
-              <li><a href="#how-it-works">Comment ça marche</a></li>
               <li><a href="/brandlisting">Pour les marques</a></li>
               <li><a href="/influencerslisting">Pour les influenceurs</a></li>
               <li><a href="#">Blog</a></li>

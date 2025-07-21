@@ -94,7 +94,7 @@ const BrandListing = () => {
               <div key={brand.id} className="brand-card">
                 <div className="brand-image-container">
                 <img
-                      src={brand.photo || brand.photo || '/photo1.png'}
+                      src={brand.logo}
                       alt={brand.name}
                       className="card-image"
                     />
@@ -122,7 +122,7 @@ const BrandListing = () => {
                     </div>
                   </div>
 
-                  <p className="brand-description">{brand.présentation}</p>
+                  <p className="brand-description">{brand.bio}</p>
 
                   <div className="brand-meta">
                     <div className="meta-item">
@@ -137,8 +137,8 @@ const BrandListing = () => {
 
                   <div className="brand-footer">
                     <div className="brand-budget">
-                      <span className="label">Budget: </span>
-                      <span className="value">{brand.budget ?? 'Non précisé'}</span>
+                      <span className="label"> Budget: <span className="value1">{brand.budget}</span>  </span>
+                      
                     </div>
                     <Link to={`/brand/${brand.id}`} className="view-profile">
                       Voir le profil

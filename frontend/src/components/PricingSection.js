@@ -9,6 +9,8 @@ import PricingPeriodToggle from "./PricingPeriodToggle";
 const PricingSection = () => {
   const [isInfluencer, setIsInfluencer] = useState(true);
   const [isAnnual, setIsAnnual] = useState(true);
+  console.log('TEST ENV:', import.meta.env);
+
 
   const PlansToDisplay = isInfluencer ? influencerPlans : brandPlans;
 

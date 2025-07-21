@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Star, Calendar, BarChart2, Users, MessageSquare, Award, Edit } from 'lucide-react';
+import {
+  Star, Calendar, BarChart2, Users, MessageSquare, Award, Edit, Send
+} from 'lucide-react';
 import Notifications from '../common/Notifications';
-import { Link } from 'react-router-dom';
-import { calculateProfileScore } from '../../utils/profileUtils'; 
+import { Link, useLocation } from 'react-router-dom'; // ✅ Ajout de useLocation
 
 const UserDashboard = () => {
   const [userData, setUserData] = useState(null);
@@ -10,6 +11,7 @@ const UserDashboard = () => {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState(null);
+  const location = useLocation(); 
 
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("users"));
@@ -22,10 +24,7 @@ const UserDashboard = () => {
 
     fetch(`http://localhost:3001/api/user/${userId}`)
       .then(res => res.json())
-      .then(data => {
-        const { percentage, isComplete } = calculateProfileScore(data); //  Calcul du score
-        setUserData({ ...data, profileCompletion: percentage, is_profile_complete: isComplete }); 
-      })
+      .then(data => setUserData(data)) 
       .catch(() => setError("Erreur lors du chargement des données utilisateur."));
 
     fetch('/api/events')
@@ -42,7 +41,7 @@ const UserDashboard = () => {
       .then(res => res.json())
       .then(setNotifications)
       .catch(console.error);
-  }, []);
+  }, [location]); 
 
   if (error) return <p>{error}</p>;
   if (!userData) return <p>Chargement...</p>;
@@ -78,6 +77,9 @@ const UserDashboard = () => {
               className="profile-alert-progress"
               style={{ width: `${userData.profileCompletion}%` }}
             ></div>
+            <span className="profile-alert-percentage">
+              {userData.profileCompletion}% complété
+            </span>
           </div>
         </div>
       )}
@@ -143,8 +145,8 @@ const UserDashboard = () => {
               <div key={activity.id} className="activity-item">
                 <div className={`activity-icon ${activity.type}`}>
                   {activity.type === 'collaboration' ? <Users /> :
-                    activity.type === 'message' ? <MessageSquare /> :
-                      <Award />}
+                   activity.type === 'message' ? <MessageSquare /> :
+                   <Award />}
                 </div>
                 <div className="activity-content">
                   <p className="activity-title">{activity.title}</p>
@@ -177,6 +179,28 @@ const UserDashboard = () => {
       <section className="notifications-section">
         <Notifications notifications={notifications} />
       </section>
+
+      <div className="quick-actions-container">
+        <h2 className="quick-actions-title">Actions rapides</h2>
+        <div className="quick-actions-grid">
+          <Link to="/brandlisting" className="quick-action primary">
+            <Users className="icon" />
+            Trouver des marques
+          </Link>
+          <Link to="/influencer/collaborations" className="quick-action">
+            <Send className="icon" />
+            Mes collaborations
+          </Link>
+          <Link to="/influencer/wallet" className="quick-action">
+            <MessageSquare className="icon" />
+            Mon portefeuille
+          </Link>
+          <Link to="/profile/influencer/complete" className="quick-action">
+            <Edit className="icon" />
+            Modifier mon profil
+          </Link>
+        </div>
+      </div>
     </div>
   );
 };

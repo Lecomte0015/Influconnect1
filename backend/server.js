@@ -9,14 +9,19 @@ const path = require('path');
 const multer = require('multer');
 require('dotenv').config();
 
-
-
+const db = require('./db');
 
 const app = express();
+const { authenticateToken } = require('./middlewares/authMiddleware');
+const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const stripeRoutes = require('./routes/stripeRoutes');
+const userRoutes = require('./routes/userRoutes');
+const conversationRoutes = require('./routes/conversationRoutes');
+const { computeProfileCompletion } = require('./utils/profileUtils');
 
-app.use(express.json({ limit: '10mb' }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/images/users', express.static(path.join(__dirname, 'uploads/avatar')));
+
+
 
 
 
@@ -26,46 +31,29 @@ app.use(cors({
   allowedHeaders: ['Content-Type','Authorization']
 }));
 
-// Connexion MySQL
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
-
-const computeProfileCompletion = (user) => {
-  let score = 0;
-  if (user.photo) score += 10;
-  if (user.firstname) score += 5;
-  if (user.lastname) score += 5;
-  if (user.address || user.city || user.country) score += 5;
-  if (user.présentation) score += 5;
-  if (user.languages && Array.isArray(user.languages) && user.languages.length) score += 3;
-  if (user.phone) score += 2;
-  if (user.email) score += 2;
-  if (user.category) score += 5;
-  if (user.experience) score += 3;
-  if (user.tags && Array.isArray(user.tags) && user.tags.length) score += 3;
-  if (user.website) score += 2;
-  if (user.availability) score += 2;
-
-  if (user.instagram || user.tiktok || user.youtube || user.twitter) score += 10;
-
-  const percentage = Math.round((score / 70) * 100);
-  const isComplete = score >= 63;
-  return { percentage, isComplete };
-};
 
 
-db.connect(err => {
-  if (err) {
-    console.error("Erreur de connexion à MySQL :", err);
-    process.exit(1);
-  } else {
-    console.log("Connexion à MySQL réussie !");
-  }
-});
+//app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/invoices', express.static(path.join(__dirname, 'public/invoices')));
+app.use('/conversations', express.static(path.join(__dirname, 'public/conversations')));
+
+
+
+app.use('/api/subscription-plans', require('./routes/subscriptionPlanRoutes'));
+app.use('/api/invoices', require('./routes/invoiceRoutes'));
+app.use('/api/events', require('./routes/eventRoutes'));
+app.use('/api/activities', require('./routes/activityRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/stripe', stripeRoutes);
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/messages', require('./routes/messagesRoutes'));
+app.use('/api', conversationRoutes);
+
 
 // Config nodemailer avec Mailtrap
 const transporter = nodemailer.createTransport({
@@ -77,8 +65,8 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-const generateToken = (payload, expiresIn = '1h') => {
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
+const generateToken = (payload, duration = '1h') => {
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: duration });
 };
 
 app.post('/api/register', async (req, res) => {
@@ -118,7 +106,7 @@ app.post('/api/register', async (req, res) => {
             from: '"Mon App" <no-reply@influconnect.com>',
             to: email,
             subject: "Confirme ton inscription",
-            html: `<p>Bonjour ${firstName},</p>
+            html: `<p>Bonjour ${firstname},</p>
                    <p>Merci pour ton inscription. Clique sur ce lien pour valider ton compte :</p>
                    <a href="${confirmationUrl}">${confirmationUrl}</a>
                    <p>Ce lien expire dans 24h.</p>`
@@ -201,9 +189,12 @@ app.post('/api/login', (req, res) => {
       }
 
       // Ici je genère le token JWT d'accès 
-      const accessToken = generateToken({ id: user.id, email: user.email }, '2h');
+      const accessToken = generateToken({ id: user.id }, '7d');
+     
 
-      res.json({ message: 'Connexion réussie', token: accessToken, user: {
+      res.json({ message: 'Connexion réussie', 
+        token: accessToken,
+        user: {
         id: user.id,
         firstname: user.firstname,
         lastname: user.lastname,
@@ -215,20 +206,7 @@ app.post('/api/login', (req, res) => {
 });
 
 
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
 
-  if (!authHeader) return res.status(401).json({ error: 'Token manquant' });
-
-  const token = authHeader.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'Token manquant' });
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Token invalide' });
-    req.user = user;
-    next();
-  });
-};
 
 app.get('/api/user/:id', (req, res) => {
   const userId = req.params.id;
@@ -254,12 +232,94 @@ app.get('/api/user/:id', (req, res) => {
       profileViews: Math.floor(Math.random() * 10000),
       collaborations: Math.floor(Math.random() * 20),
       rating: (Math.random() * 2 + 3).toFixed(1),
-      profileCompletion: percentage,
-      is_profile_complete: isComplete
+      
     };
 
     res.json(dashboardData);
   });
+});
+
+
+app.put('/api/user/:id', (req, res) => {
+  const userId = req.params.id;
+  const data = req.body;
+
+  const { percentage, isComplete } = computeProfileCompletion(data);
+
+  const sql = `
+    UPDATE users SET 
+      firstname = ?, lastname = ?, birthdate = ?, gender = ?, bio = ?, description = ?,
+      city = ?, country = ?, phone = ?, email = ?, category = ?, experience = ?,
+      photo = ?, cover_image = ?, 
+      min_budget = ?, availability = ?, collaborationTypes = ?,
+      tags = ?, languages = ?, collaborations = ?, website = ? 
+     
+    WHERE id = ?
+  `;
+
+  
+  const values = [
+    data.firstname, data.lastname, data.birthdate, data.gender,
+    data.bio,data.description,
+    data.city, data.country, data.phone, data.email, data.category, data.experience,
+    data.photo, data.cover_image,
+    data.minBudget, data.availability, JSON.stringify(data.collaborationTypes || []),
+    JSON.stringify(data.interests || []),
+    JSON.stringify(data.languages || []),
+    data.collaborations || 0,
+    data.website,
+    percentage, isComplete ? 1 : 0,
+    userId
+  ];
+
+  db.query(sql, values, (err, result) => {
+    if (err) {
+      console.error('Erreur lors de la mise à jour du profil :', err);
+      return res.status(500).json({ error: 'Erreur serveur' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profil mis à jour avec complétion calculée',
+      profileCompletion: percentage,
+      is_profile_complete: isComplete
+    });
+  });
+});
+
+app.put('/api/user/:id/socials', async (req, res) => {
+  const userId = req.params.id;
+  const { instagram, tiktok, youtube, twitter } = req.body;
+  const platforms = { instagram, tiktok, youtube, twitter };
+
+  try {
+    for (const name in platforms) {
+      const url = platforms[name];
+      if (!url || url.trim() === '') continue;
+
+      const [rows] = await db.promise().query(
+        'SELECT id FROM Social_networks WHERE user_id = ? AND name = ?',
+        [userId, name]
+      );
+
+      if (rows.length) {
+        await db.promise().query(
+          'UPDATE Social_networks SET url = ? WHERE user_id = ? AND name = ?',
+          [url, userId, name]
+        );
+      } else {
+        await db.promise().query(
+          'INSERT INTO Social_networks (user_id, name, url) VALUES (?, ?, ?)',
+          [userId, name, url]
+        );
+      }
+    }
+
+    res.json({ success: true, message: "Réseaux sociaux mis à jour" });
+  } catch (err) {
+    console.error("Erreur réseaux :", err);
+    res.status(500).json({ error: "Erreur lors de la mise à jour des réseaux sociaux" });
+  }
 });
 
 
@@ -348,10 +408,11 @@ app.get('/api/influencers', (req, res) => {
       CONCAT(u.city, ', ', u.country) AS location,
       u.photo AS image,
       u.cover_image,
-      u.présentation AS description,
+      u.description,
+      u.bio,
       u.birthdate,
       u.verified,
-      u.tags,
+      u.tags AS interest,
       u.collaborations,
       u.rating,
       u.category,
@@ -389,8 +450,10 @@ app.get('/api/influencers', (req, res) => {
         id: row.id,
         name: row.name,
         location: row.location,
-        image: row.photo,
-        description: row.présentation,
+        image: row.image,
+        description: row.description,
+        bio: row.bio,
+        interest: row.tags,
         age,
         verified: row.verified === 1,
         rating: row.rating || 4.0,
@@ -453,9 +516,11 @@ app.get('/api/influencer/:id', (req, res) => {
       u.city,
       u.country,
       u.collaborations,
-      u.photo,
-      u.cover_image,
-      u.présentation,
+      u.photo AS image,
+      u.cover_image AS photo,
+      u.bio,
+      u.category,
+      u.description,
       u.birthdate,
       u.verified,
       u.tags,
@@ -505,8 +570,11 @@ app.get('/api/influencer/:id', (req, res) => {
       id: base.id,
       name: `${base.firstname} ${base.lastname}`,
       location: `${base.city}, ${base.country}`,
-      image: base.photo,
-      description: base.présentation,
+      image: base.image,
+      description: base.description,
+      bio: base.bio,
+      cover_image: base.photo,
+      category: base.category,
       age,
       collaborations: base.collaborations,
       verified: base.verified === 1,
@@ -519,15 +587,23 @@ app.get('/api/influencer/:id', (req, res) => {
 });
 
 
-app.post('/api/favorites', authenticateToken, async  (req, res) => {
-  const { influencerId } = req.body;
-  const userId = req.user.id; 
+app.post('/api/favorites', authenticateToken, async (req, res) => {
+  const user_id_from = req.user?.id;
+  const { user_id_to } = req.body;
+
+  if (!user_id_from || !user_id_to) {
+    console.error(" Données manquantes :", { user_id_from, user_id_to });
+    return res.status(400).json({ error: "Données manquantes pour ajouter un favori" });
+  }
 
   try {
     await db.promise().query(
-      'INSERT INTO favorites (user_id, influencer_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE user_id = user_id',
-      [userId, influencerId]
+      `INSERT INTO Favorites (user_id_from, user_id_to, created_at)
+       VALUES (?, ?, NOW())
+       ON DUPLICATE KEY UPDATE user_id_from = user_id_from`,
+      [user_id_from, user_id_to]
     );
+
     res.status(201).json({ message: 'Ajouté aux favoris' });
   } catch (err) {
     console.error('Erreur ajout favoris :', err);
@@ -536,14 +612,15 @@ app.post('/api/favorites', authenticateToken, async  (req, res) => {
 });
 
 
-app.delete('/api/favorites/:influencerId', authenticateToken, async (req, res) => {
-  const userId = req.user.id;
-  const influencerId = req.params.influencerId;
+
+app.delete('/api/favorites/:user_id_to', authenticateToken, async (req, res) => {
+  const user_id_from = req.user.id;
+  const user_id_to = req.params.user_id_to;
 
   try {
     await db.promise().query(
-      'DELETE FROM favorites WHERE user_id = ? AND influencer_id = ?',
-      [userId, influencerId]
+      'DELETE FROM Favorites WHERE user_id_from = ? AND user_id_to = ?',
+      [user_id_from, user_id_to]
     );
     res.json({ message: 'Supprimé des favoris' });
   } catch (err) {
@@ -552,23 +629,40 @@ app.delete('/api/favorites/:influencerId', authenticateToken, async (req, res) =
   }
 });
 
-
-app.get('/api/favorites/:influencerId', authenticateToken, async (req, res) => {
-  const userId = req.user.id;
-  const influencerId = req.params.influencerId;
+app.get('/api/favorites/:user_id_to', authenticateToken, async (req, res) => {
+  const user_id_from = req.user.id;
+  const user_id_to = req.params.user_id_to;
 
   try {
     const [rows] = await db.promise().query(
-      'SELECT * FROM favorites WHERE user_id = ? AND influencer_id = ?',
-      [userId, influencerId]
+      'SELECT id FROM Favorites WHERE user_id_from = ? AND user_id_to = ?',
+      [user_id_from, user_id_to]
     );
 
     res.json({ isFavorite: rows.length > 0 });
   } catch (err) {
-    console.error('Erreur check favori :', err);
+    console.error('Erreur vérification favori :', err);
     res.status(500).json({ message: 'Erreur serveur' });
   }
 });
+
+app.get('/api/favorites', authenticateToken, async (req, res) => {
+  const user_id_from = req.user.id;
+
+  try {
+    const [rows] = await db.promise().query(
+      'SELECT user_id_to, created_at FROM Favorites WHERE user_id_from = ?',
+      [user_id_from]
+    );
+
+    res.json({ favorites: rows });
+  } catch (err) {
+    console.error('Erreur récupération favoris :', err);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+
 
 app.get('/api/brands/:id', (req, res) => {
   const brandId = req.params.id;
@@ -576,7 +670,7 @@ app.get('/api/brands/:id', (req, res) => {
   const sql = `
   SELECT 
   id, business_name, email, business_sector, website, phone,
-  address, city, country, présentation AS description, cover_image, photo,logo
+  address, city, country,cible, description,bio,collaborations, cover_image, photo,logo
   FROM users
   WHERE _type = 'business' AND id = ?
   `;
@@ -617,8 +711,10 @@ app.get('/api/brands-full', (req, res) => {
       u.logo,
       u.cover_image,
       u.city,
+      u.cible,
       u.country,
-      u.présentation,
+      u.bio,
+      u.description,
       u.rating,
       u.collaborations,
       u.created_at,
@@ -628,7 +724,8 @@ app.get('/api/brands-full', (req, res) => {
     LEFT JOIN Services s ON s.business_id = u.id
     WHERE u._type = 'business'
       AND u.verified = 1
-      AND u.business_name LIKE ?
+      AND LOWER(u.business_name) LIKE LOWER(?)
+
       AND u.business_sector LIKE ?
     GROUP BY u.id
     ORDER BY ${sortField} ASC
@@ -645,7 +742,7 @@ app.get('/api/brands-full', (req, res) => {
       if (brand.min_price && brand.max_price && brand.min_price !== brand.max_price) {
         budget = `Entre ${brand.min_price}€ et ${brand.max_price}€`;
       } else if (brand.min_price) {
-        budget = `À partir de ${brand.min_price}€`;
+        budget = ` ${brand.min_price}€`;
       }
       return { ...brand, budget };
     });
@@ -683,7 +780,7 @@ app.patch('/api/user/:id/complete', (req, res) => {
 
 app.put('/api/user/:id', (req, res) => {
   const userId = parseInt(req.params.id);
-
+  
   const {
     firstname,
     lastname,
@@ -701,7 +798,7 @@ app.put('/api/user/:id', (req, res) => {
     youtube,
     twitter,
     website
-  } = req.body;
+  } = JSON.parse(req.body);
 
   const updateQuery = `
     UPDATE users 
@@ -741,7 +838,7 @@ app.put('/api/user/:id', (req, res) => {
       return res.status(500).json({ error: 'Erreur lors de la mise à jour du profil utilisateur.' });
     }
 
-    // Mise à jour des réseaux sociaux
+   
     const socialNetworks = [];
     if (instagram) socialNetworks.push({ name: 'Instagram', url: instagram });
     if (tiktok)    socialNetworks.push({ name: 'TikTok',    url: tiktok });
@@ -788,19 +885,52 @@ app.put('/api/user/:id', (req, res) => {
   });
 });
 
+app.get('/api/users', (req, res) => {
+  const { type, query } = req.query; 
 
+  let sql = `SELECT * FROM users WHERE 1=1`;
+  const params = [];
 
+  if (type) {
+    sql += ` AND _type = ?`;
+    params.push(type);
+  }
 
+  if (query) {
+    sql += ` AND (firstname LIKE ? OR lastname LIKE ? OR business_name LIKE ?)`;
+    const q = `%${query}%`;
+    params.push(q, q, q);
+  }
+
+  db.query(sql, params, (err, results) => {
+    if (err) {
+      console.error("Erreur lors de la récupération des utilisateurs :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    res.json(results);
+  });
+});
+
+app.get('/api/brand-industries', (req, res) => {
+  const sql = `
+    SELECT DISTINCT business_sector FROM users
+    WHERE _type = 'business' AND business_sector IS NOT NULL AND business_sector != ''
+  `;
+  db.query(sql, (err, results) => {
+    if (err) {
+      console.error('Erreur dans /api/brand-industries :', err);
+      return res.status(500).json({ message: 'Erreur serveur' });
+    }
+    const sectors = results.map(r => r.business_sector);
+    res.json(['Tous', ...sectors]);
+  });
+});
 
 
 
 const uploadDirs = ['uploads/avatar', 'uploads/covers', 'uploads/logo'];
-uploadDirs.forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-    console.log(` Dossier créé : ${dir}`);
-  }
-});
+
+
 
 const imageFileFilter = (req, file, cb) => {
   if (!file.mimetype.startsWith('image/')) {
@@ -822,7 +952,7 @@ const storage = multer.diskStorage({
     const columnMap = {
       photo: 'photo',
       avatar: 'photo',
-      cover: 'cover_image',
+      covers: 'cover_image',
       cover_image: 'cover_image',
       logo: 'logo'
     };
@@ -885,6 +1015,125 @@ app.post('/api/upload-image', authenticateToken, upload.any(), (req, res) => {
   }
 });
 
+
+
+app.get('/wallet', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const [walletRows] = await db.promise().query(
+      'SELECT id, balance FROM Wallet WHERE user_id = ?',
+      [userId]
+    );
+
+    if (walletRows.length === 0) {
+      return res.status(404).json({ message: 'Wallet non trouvé' });
+    }
+
+    const walletId = walletRows[0].id;
+    const balance = parseFloat(walletRows[0].balance);
+
+    const [pendingRows] = await db.promise().query(
+      `SELECT SUM(amount) AS pending 
+       FROM Wallet_transactions 
+       WHERE wallet_id = ? AND _type_in_out = 'cashout' AND statut = 'pending'`,
+      [walletId]
+    );
+
+    const pending = parseFloat(pendingRows[0].pending) || 0;
+
+    res.json({ balance, pending });
+  } catch (err) {
+    console.error('Erreur lors de la récupération du wallet :', err);
+    res.status(500).json({ message: 'Erreur interne' });
+  }
+});
+
+app.get('/wallet/transactions', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const [walletRows] = await db.promise().query(
+      'SELECT id FROM Wallet WHERE user_id = ?',
+      [userId]
+    );
+
+    if (walletRows.length === 0) {
+      return res.json({ transactions: [] });
+    }
+
+    const walletId = walletRows[0].id;
+
+    const [txRows] = await db.promise().query(
+      `SELECT id, treatment_date AS date, _type_in_out AS type, amount, statut AS status 
+       FROM Wallet_transactions 
+       WHERE wallet_id = ? 
+       ORDER BY treatment_date DESC 
+       LIMIT 20`,
+      [walletId]
+    );
+
+    const transactions = txRows.map(tx => ({
+      id: tx.id,
+      date: tx.date,
+      description: tx.type === 'cashin' ? 'Dépôt' : 'Retrait',
+      amount: tx.type === 'cashout' ? -parseFloat(tx.amount) : parseFloat(tx.amount),
+      status: tx.status
+    }));
+
+    res.json({ transactions });
+  } catch (err) {
+    console.error('Erreur lors de la récupération des transactions :', err);
+    res.status(500).json({ message: 'Erreur interne' });
+  }
+});
+
+app.post('/wallet/withdraw', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const { amount } = req.body;
+
+  if (!amount || isNaN(amount) || amount <= 0) {
+    return res.status(400).json({ message: 'Montant invalide' });
+  }
+
+  try {
+    const [walletRows] = await db.promise().query(
+      'SELECT id, balance FROM Wallet WHERE user_id = ?',
+      [userId]
+    );
+
+    if (walletRows.length === 0) {
+      return res.status(404).json({ message: 'Wallet non trouvé' });
+    }
+
+    const walletId = walletRows[0].id;
+    const balance = parseFloat(walletRows[0].balance);
+
+    const [pendingRows] = await db.promise().query(
+      `SELECT SUM(amount) AS pending 
+       FROM Wallet_transactions 
+       WHERE wallet_id = ? AND _type_in_out = 'cashout' AND statut = 'pending'`,
+      [walletId]
+    );
+
+    const pending = parseFloat(pendingRows[0].pending) || 0;
+    const available = balance - pending;
+
+    if (amount > available) {
+      return res.status(400).json({ message: 'Fonds insuffisants' });
+    }
+
+    await db.promise().query(
+      `INSERT INTO Wallet_transactions (wallet_id, service_id, _type_in_out, amount, statut, treatment_date, created_at, updated_at)
+       VALUES (?, NULL, 'cashout', ?, 'pending', NOW(), NOW(), NOW())`,
+      [walletId, amount]
+    );
+
+    res.status(201).json({ message: 'Demande de retrait enregistrée' });
+  } catch (err) {
+    console.error('Erreur lors du retrait :', err);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
 
 
 

@@ -1,42 +1,66 @@
-import React from 'react';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 
+const CategoryFilters = ({
+  selectedOption,
+  onSelectCategory,
+  onSelectIndustry,
+}) => {
+  const [categories, setCategories] = useState([]);
+  const [industries, setIndustries] = useState([]);
 
-const categories = [
-  'Lifestyle', 'Mode', 'Beauté', 'Tech', 'Gaming', 
-  'Food', 'Voyage', 'Fitness', 'Business',
-];
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        if (selectedOption === "influenceur") {
+          const res = await axios.get("http://localhost:3001/api/influencer-tags");
+          setCategories(res.data);
+        } else {
+          const res = await axios.get("http://localhost:3001/api/brand-industries");
+          setIndustries(res.data);
+        }
+      } catch (error) {
+        console.error("Erreur chargement filtres :", error);
+      }
+    };
 
-const industries = [
-  'Cosmétique', 'Mode', 'Alimentation', 'Technologie', 
-  'Luxe', 'Sport', 'Divertissement', 'Education', 'santé',
-];
+    fetchFilters();
+  }, [selectedOption]);
 
+  const resetFilters = () => {
+    onSelectCategory("");
+    onSelectIndustry("");
+  };
 
-const CategoryFilters = () => {
+  const handleClick = (value) => {
+    if (selectedOption === "influenceur") {
+      onSelectCategory(value === "Tous" ? "" : value);
+    } else {
+      onSelectIndustry(value === "Tous" ? "" : value);
+    }
+  };
+
+  const currentList = selectedOption === "influenceur" ? categories : industries;
+
   return (
     <div className="filters-container">
       <div className="filters-header">
         <span>Filtres</span>
-        <button className="reset-button">x Réinitialisation</button>
+        <button className="reset-button" onClick={resetFilters}>
+          x Réinitialisation
+        </button>
       </div>
 
-      <div className="filters-columns">
-        <div className="filter-group">
-          <h4>Catégories</h4>
-          <div className="filter-tags">
-            {categories.map((cat) => (
-              <span key={cat} className="tag">{cat}</span>
-            ))}
-          </div>
-        </div>
-
-        <div className="filter-group">
-          <h4>Industries</h4>
-          <div className="filter-tags">
-            {industries.map((ind) => (
-              <span key={ind} className="tag">{ind}</span>
-            ))}
-          </div>
+      <div className="filter-group">
+        <h4>
+          {selectedOption === "influenceur" ? "Catégories d'influenceurs" : "Industries des marques"}
+        </h4>
+        <div className="filter-tags">
+          {currentList.map((value) => (
+            <button key={value} className="tag" onClick={() => handleClick(value)}>
+              {value}
+            </button>
+          ))}
         </div>
       </div>
     </div>

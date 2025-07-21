@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  Award, Users, Instagram, Globe, Star, Calendar, MapPin, MessageSquare
+  Award, Users, Instagram, Globe, Calendar, MapPin, MessageSquare
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -14,6 +14,8 @@ const getPlatformIcon = (name) => {
   }
 };
 
+
+
 const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 const ProfileDetail = () => {
@@ -21,32 +23,45 @@ const ProfileDetail = () => {
   const [influencer, setInfluencer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFavorite, setIsFavorite] = useState(false);
-  const isLoggedIn = !!localStorage.getItem('token');
+
+  const token = localStorage.getItem('token');
+  const isLoggedIn = !!token;
 
   useEffect(() => {
     const fetchInfluencer = async () => {
-   
-
       try {
         const response = await axios.get(`/api/influencer/${id}`);
-        console.log("Données reçues :", response.data);
-
         setInfluencer(response.data);
-        console.log("PHOTO:", response.data.photo);
-console.log("COVER:", response.data.cover_image);
-
       } catch (error) {
         console.error("Erreur lors du chargement de la fiche influenceur :", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchInfluencer();
-    
 
-    const stored = JSON.parse(localStorage.getItem('guestFavorites')) || [];
-    setIsFavorite(stored.includes(parseInt(id)));
-  }, [id]);
+    const checkFavorite = async () => {
+      const currentId = parseInt(id);
+
+      if (isLoggedIn) {
+        try {
+          const res = await axios.get(`/api/favorites/${currentId}`, {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+          setIsFavorite(res.data.isFavorite);
+        } catch (err) {
+          console.error('Erreur vérification favori :', err);
+        }
+      } else {
+        const stored = JSON.parse(localStorage.getItem('guestFavorites')) || [];
+        setIsFavorite(stored.includes(currentId));
+      }
+    };
+
+    fetchInfluencer();
+    checkFavorite();
+  }, [id, isLoggedIn, token]);
 
   const handleContactClick = () => {
     if (!isLoggedIn) {
@@ -56,14 +71,41 @@ console.log("COVER:", response.data.cover_image);
     console.log("Ouverture du formulaire de contact");
   };
 
-  const toggleFavorite = () => {
-    const stored = JSON.parse(localStorage.getItem('guestFavorites')) || [];
+  const toggleFavorite = async () => {
     const currentId = parseInt(id);
-    const updated = stored.includes(currentId)
-      ? stored.filter(favId => favId !== currentId)
-      : [...stored, currentId];
-    localStorage.setItem('guestFavorites', JSON.stringify(updated));
-    setIsFavorite(updated.includes(currentId));
+
+    if (!isLoggedIn) {
+      const stored = JSON.parse(localStorage.getItem('guestFavorites')) || [];
+      const updated = stored.includes(currentId)
+        ? stored.filter(favId => favId !== currentId)
+        : [...stored, currentId];
+      localStorage.setItem('guestFavorites', JSON.stringify(updated));
+      setIsFavorite(updated.includes(currentId));
+      return;
+    }
+
+    try {
+      if (isFavorite) {
+        await axios.delete(`/api/favorites/${currentId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+      } else {
+        
+        await axios.post('http://localhost:3001/api/favorites',
+        { user_id_to: currentId }, 
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+      }
+      setIsFavorite(!isFavorite);
+    } catch (error) {
+      console.error('Erreur modification favoris :', error);
+    }
   };
 
   if (loading) return <p className="loading">Chargement du profil...</p>;
@@ -74,15 +116,14 @@ console.log("COVER:", response.data.cover_image);
       <Link to="/InfluencersListing" className="back-link">← Retour aux influenceurs</Link>
 
       <div className="profile-banner">
-      <img src={influencer.cover_image || '/uploads/covers/'} alt="Couverture" className="cover-img" />
+        <img src={influencer.cover_image} alt={influencer.name} className="cover-image" />
         <div className="banner-overlay">
-        <img src={influencer.photo || '/uploads/avatar/'} alt={influencer.name} className="avatar" />
+          <img src={influencer.image} alt={influencer.name}className="profile-avatar" />
           <div>
-            <h1>{influencer.name}</h1>
-            <p>{influencer.location} • {influencer.age} ans</p>
+            <h1 className='titre1'>{influencer.name}</h1>
+            <p>{influencer.category}  {influencer.age} ans</p>
             <div className="badge-line">
-              {influencer.category && <span className="category-badge">{influencer.category}</span>}
-              {influencer.verified && <span className="verified"><Award size={14} /> Vérifié</span>}
+              {influencer.verified && <span className="verified-badge"><Award size={14} className="icon" /> Vérifié</span>}
             </div>
           </div>
         </div>
@@ -99,11 +140,11 @@ console.log("COVER:", response.data.cover_image);
                 <p>{influencer.bio}</p>
               </>
             )}
-            {influencer.interests?.length > 0 && (
+            {influencer.tags?.length > 0 && (
               <>
                 <h3>Centres d’intérêt</h3>
                 <div className="tags">
-                  {influencer.interests.map((tag, i) => (
+                  {influencer.tags.map((tag, i) => (
                     <span key={i} className="tag">{tag}</span>
                   ))}
                 </div>
@@ -192,10 +233,11 @@ console.log("COVER:", response.data.cover_image);
 
           <section className="card">
             <h3>Tarifs</h3>
-            <p>Post Instagram : {influencer.rates?.post || '—'}</p>
-            <p>Story Instagram : {influencer.rates?.story || '—'}</p>
-            <p>Reel Instagram : {influencer.rates?.reel || '—'}</p>
-            <p>Vidéo YouTube : {influencer.rates?.video || '—'}</p>
+            <p>Post Instagram : {influencer.rates?.post || '350'} €</p>
+            <p>Story Instagram : {influencer.rates?.story || '200'} €</p>
+            <p>Reel Instagram : {influencer.rates?.reel || '150'} €</p>
+            <p>Vidéo YouTube : {influencer.rates?.video || '450'} €</p>
+
           </section>
 
           <section className="card">

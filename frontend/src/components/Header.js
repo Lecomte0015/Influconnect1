@@ -1,8 +1,14 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom'; 
-import logo from '../assets/logo1.png'; 
+import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom';
+import logo from '../assets/logo1.png';
+import { FiMenu, FiX } from 'react-icons/fi';
+
 
 const Header = () => {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const toggleMenu = () => setMenuOpen(!menuOpen);
+
   return (
     <header className="main-header">
       <div className="logo">
@@ -10,9 +16,13 @@ const Header = () => {
           <img src={logo} alt="Influconnect Logo" className="logo-image" />
         </NavLink>
       </div>
-      <nav className="nav-links">
+
+      <button className="burger-button" onClick={toggleMenu}>
+        {menuOpen ? <FiX/> : <FiMenu/>}
+      </button>
+
+      <nav className={`nav-links ${menuOpen ? 'open' : ''}`}>
         <ul className="nav-list">
-          <li><NavLink to="/how-it-works">Comment ça marche ?</NavLink></li>
           <li><NavLink to="/brandlisting">Les Marques</NavLink></li>
           <li><NavLink to="/influencerslisting">Les Influenceurs</NavLink></li>
           <li><NavLink to="/login">Connexion</NavLink></li>

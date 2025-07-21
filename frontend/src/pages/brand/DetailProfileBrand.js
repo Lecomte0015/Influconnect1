@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Mail, Globe, Phone, MapPin
+   Mail, Globe, Phone, MapPin, Award
 } from 'lucide-react';
 
 const DetailProfileBrand = () => {
@@ -34,12 +34,9 @@ const DetailProfileBrand = () => {
 
   return (
     <div className="brand-container">
-      <div className="container">
-        <Link to="/BrandListing" className="back-link">
-          <ArrowLeft size={18} />
-          Retour aux marques
-        </Link>
+            <Link to="/BrandListing" className="back-link">← Retour aux influenceurs</Link>
 
+      <div className="container">
         {/* Image de couverture */}
         <div className="cover-wrapper">
           {brand.cover_image && (
@@ -54,17 +51,19 @@ const DetailProfileBrand = () => {
                 <h1 className="brand-name">{brand.business_name}</h1>
                 <div className="brand-tags">
                   <span className="tag-pill">{brand.business_sector}</span>
+                  {brand.verified && <span className="verified-badge"><Award size={14} className="icon" /> Vérifié</span>}
+
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Grille principale : 2 colonnes */}
+        
         <div className="main-grid">
-          {/* Colonne gauche */}
+          
           <div className="left-column">
-            {/* À propos */}
+            
             <div className="card">
               <h2 className="card-title">À propos</h2>
               {brand.description && (
@@ -73,17 +72,17 @@ const DetailProfileBrand = () => {
               <div className="grid-two">
                 <div>
                   <h3 className="card-subtitle">Mission</h3>
-                  <p className="card-subtext">{brand.mission}</p>
+                  <p className="card-subtext">{brand.bio}</p>
                 </div>
                 <div>
                   <h3 className="card-subtitle">Audience cible</h3>
-                  <p className="card-subtext">{brand.target_audience}</p>
+                  <p className="card-subtext">{brand.cible}</p>
                 </div>
               </div>
               <div className="brand-values">
                 <h3 className="card-subtitle">Valeurs</h3>
                 <div className="pill-group">
-                  {brand.values?.map((value, index) => (
+                  {brand.tags?.map((value, index) => (
                     <span key={index} className="pill">{value}</span>
                   ))}
                 </div>
